@@ -1,0 +1,172 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(rgba16f, binding = 0) uniform writeonly image2D uHDRImage;
+layout(std430, binding = 1) buffer Stats {
+    uint totalIterations;
+    uint capturedPixels;
+    uint totalPixels;
+    uint diskHitPixels;
+};
+
+uniform vec3 uCamPos;
+uniform vec3 uCamFwd;
+uniform vec3 uCamRight;
+uniform vec3 uCamUp;
+uniform float uTanHalfFov;
+uniform float uAspect;
+uniform float uPixelAngle;
+uniform float uDiskTime;
+uniform int uMaxSteps;
+uniform float uStepScale;
+uniform int uMaxCrossings;
+uniform float uEscapeR;
+uniform float uDiskInner;
+uniform float uDiskOuter;
+uniform float uTempInner;
+uniform float uTempNorm;
+uniform float uDiskIntensity;
+uniform float uDopplerStrength;
+uniform float uArtisticMix;
+uniform int uCollectStats;
+
+const float PI = 3.14159265358979323846;
+const float RS = 2.0;
+
+float hash31(vec3 p) {
+    p = fract(p * 0.1031);
+    p += dot(p, p.yzx + 33.33);
+    return fract((p.x + p.y) * p.z);
+}
+
+vec3 starField(vec3 direction) {
+    vec3 d = normalize(direction);
+    vec3 cell = floor(d * 700.0);
+    float star = hash31(cell);
+    float brightness = smoothstep(0.997, 1.0, star);
+    float colorSeed = hash31(cell + 19.17);
+    vec3 color = mix(vec3(0.55, 0.68, 1.0), vec3(1.0, 0.78, 0.55), colorSeed);
+    return color * brightness * 2.2;
+}
+
+vec3 blackbodyColor(float temperature) {
+    float t = clamp(temperature / 12000.0, 0.0, 1.5);
+    vec3 cool = vec3(1.0, 0.22, 0.035);
+    vec3 warm = vec3(1.0, 0.68, 0.24);
+    vec3 hot = vec3(0.72, 0.84, 1.0);
+    if (t < 0.55) return mix(cool, warm, t / 0.55);
+    return mix(warm, hot, clamp((t - 0.55) / 0.95, 0.0, 1.0));
+}
+
+float diskFilaments(float radius, float angle) {
+    float orbitalSpeed = 0.45 * pow(uDiskInner / radius, 1.5);
+    float materialAngle = angle - uDiskTime * orbitalSpeed;
+    float logRadius = log(radius / uDiskInner);
+    float spiral = materialAngle * 5.0 + logRadius * 8.0
+                 + 0.7 * sin(materialAngle * 3.0 - logRadius * 5.0);
+    float bands = 0.5 + 0.5 * sin(spiral);
+    float brightFilaments = pow(max(bands, 0.0), 8.0);
+    float clumpWave = 0.5 + 0.5 * sin(materialAngle * 2.0 + logRadius * 1.7
+                                    + sin(logRadius * 3.0));
+    float orbitingClumps = smoothstep(0.78, 0.98, clumpWave);
+    return 0.58 + 0.22 * bands + 0.38 * brightFilaments + 0.65 * orbitingClumps;
+}
+
+vec3 acceleration(vec3 x, float h2) {
+    float r2 = dot(x, x);
+    float r = sqrt(r2);
+    return -1.5 * RS * h2 * x / max(r2 * r2 * r, 1e-12);
+}
+
+void rk4(inout vec3 x, inout vec3 v, float h2, float dt) {
+    vec3 k1x = v;
+    vec3 k1v = acceleration(x, h2);
+    vec3 k2x = v + 0.5 * dt * k1v;
+    vec3 k2v = acceleration(x + 0.5 * dt * k1x, h2);
+    vec3 k3x = v + 0.5 * dt * k2v;
+    vec3 k3v = acceleration(x + 0.5 * dt * k2x, h2);
+    vec3 k4x = v + dt * k3v;
+    vec3 k4v = acceleration(x + dt * k3x, h2);
+    x += (dt / 6.0) * (k1x + 2.0 * k2x + 2.0 * k3x + k4x);
+    v += (dt / 6.0) * (k1v + 2.0 * k2v + 2.0 * k3v + k4v);
+}
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uHDRImage);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec2 uv = (vec2(pixel) + 0.5) / vec2(size) * 2.0 - 1.0;
+    vec3 direction = normalize(uCamFwd
+        + uv.x * uAspect * uTanHalfFov * uCamRight
+        + uv.y * uTanHalfFov * uCamUp);
+    vec3 x = uCamPos;
+    vec3 v = direction;
+    vec3 angularMomentum = cross(x, v);
+    float h2 = dot(angularMomentum, angularMomentum);
+    vec3 radiance = vec3(0.0);
+    int iterations = 0;
+    int crossings = 0;
+    bool captured = false;
+    bool hitDisk = false;
+
+    for (int i = 0; i < uMaxSteps; ++i) {
+        iterations = i + 1;
+        vec3 previousX = x;
+        float previousY = x.y;
+        float r = length(x);
+        if (r <= RS * 1.002) {
+            captured = true;
+            break;
+        }
+        if (r >= uEscapeR && dot(x, v) > 0.0) break;
+
+        float dt = uStepScale * clamp(r - RS, 0.02, 40.0);
+        rk4(x, v, h2, dt);
+
+        if (previousY * x.y <= 0.0 && abs(previousY - x.y) > 1e-6) {
+            float interpolation = clamp(previousY / (previousY - x.y), 0.0, 1.0);
+            vec3 crossing = mix(previousX, x, interpolation);
+            float diskRadius = length(crossing.xz);
+            if (diskRadius >= uDiskInner && diskRadius <= uDiskOuter) {
+                crossings++;
+                hitDisk = true;
+                float radial = diskRadius / uDiskOuter;
+                float innerRatio = uDiskInner / diskRadius;
+                float profile = pow(max(innerRatio, 0.0), 0.75)
+                              * pow(max(1.0 - sqrt(innerRatio), 0.0), 0.25);
+                float temperature = uTempInner * profile / max(uTempNorm, 1e-4);
+                float orbitSpeed = sqrt(1.0 / max(2.0 * diskRadius, 1.0));
+                vec3 tangent = normalize(vec3(-crossing.z, 0.0, crossing.x));
+                float viewAlongOrbit = clamp(dot(tangent, -v), -0.95, 0.95);
+                float dopplerRatio = sqrt((1.0 + orbitSpeed * viewAlongOrbit)
+                                        / (1.0 - orbitSpeed * viewAlongOrbit));
+                float doppler = clamp(pow(dopplerRatio, 3.0 * uDopplerStrength), 0.35, 2.5);
+                float edgeFade = smoothstep(uDiskInner, uDiskInner + 0.8, diskRadius)
+                               * (1.0 - smoothstep(uDiskOuter - 2.0, uDiskOuter, diskRadius));
+                float brightness = exp(-radial * 1.5) * edgeFade
+                                 * diskFilaments(diskRadius, atan(crossing.z, crossing.x));
+                vec3 diskColor = mix(blackbodyColor(temperature * doppler),
+                                     vec3(1.0, 0.56, 0.25), uArtisticMix);
+                float orderWeight = 1.0 / (1.0 + 0.45 * float(crossings - 1));
+                radiance += diskColor * brightness * doppler * orderWeight * uDiskIntensity * 1.6;
+                if (crossings >= uMaxCrossings) break;
+            }
+        }
+    }
+
+    if (!captured) {
+        vec3 escapeDirection = normalize(v);
+        radiance += starField(escapeDirection);
+        float lensGlow = exp(-abs(length(cross(x, v)) - 5.196) * 0.28);
+        radiance += vec3(0.035, 0.055, 0.11) * lensGlow;
+    }
+
+    imageStore(uHDRImage, pixel, vec4(radiance, 1.0));
+    if (uCollectStats != 0) {
+        atomicAdd(totalIterations, uint(iterations));
+        atomicAdd(capturedPixels, captured ? 1u : 0u);
+        atomicAdd(totalPixels, 1u);
+        atomicAdd(diskHitPixels, hitDisk ? 1u : 0u);
+    }
+}

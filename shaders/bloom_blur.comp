@@ -1,0 +1,21 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(binding = 0) uniform sampler2D uSrc;
+layout(rgba16f, binding = 0) uniform writeonly image2D uDst;
+uniform vec2 uDir;
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uDst);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec2 uv = (vec2(pixel) + 0.5) / vec2(size);
+    vec2 stepUV = uDir / vec2(textureSize(uSrc, 0));
+    vec3 color = texture(uSrc, uv).rgb * 0.227027;
+    color += texture(uSrc, uv + stepUV * 1.384615).rgb * 0.316216;
+    color += texture(uSrc, uv - stepUV * 1.384615).rgb * 0.316216;
+    color += texture(uSrc, uv + stepUV * 3.230769).rgb * 0.070270;
+    color += texture(uSrc, uv - stepUV * 3.230769).rgb * 0.070270;
+    imageStore(uDst, pixel, vec4(color, 1.0));
+}
