@@ -223,6 +223,7 @@ int main(int, char* argv[]) {
     int displayedFps = 0;
     float diskTime = 0.0f;
     float wanderTime = 0.0f;
+    const glm::vec3 driftDirection = glm::normalize(glm::vec3(1.0f, 0.2f, -0.4f));
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
 
@@ -234,11 +235,8 @@ int main(int, char* argv[]) {
             diskTime += dt * app.s.animSpeed;
             wanderTime += dt;
         }
-        const float wanderPhase = wanderTime * app.s.blackHoleWanderSpeed;
-        const glm::vec3 blackHolePosition(
-            2.2f * std::sin(wanderPhase * 0.23f),
-            0.45f * std::sin(wanderPhase * 0.37f),
-            1.6f * (std::cos(wanderPhase * 0.19f) - 1.0f));
+        const glm::vec3 blackHolePosition =
+            driftDirection * (wanderTime * 0.35f * app.s.blackHoleWanderSpeed);
         app.cam.update(window, dt, blackHolePosition);
         if (app.reloadRequested) {
             app.renderer.reloadShaders();

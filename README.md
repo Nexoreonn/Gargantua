@@ -79,7 +79,7 @@ Inicie o executavel na pasta de configuracao desejada:
 - **F3**: abrir/fechar o menu grafico exibido no titulo da janela.
 - No menu F3, **setas para cima/baixo** selecionam uma opcao e **esquerda/direita** alteram o valor.
 - Opcoes do menu: escala da resolucao interna, anti-aliasing FXAA, bloom, VSync e velocidade da deriva do buraco negro.
-- A deriva varia de **0,0x** (parado) a **3,0x**. A posicao do buraco negro percorre uma trajetoria suave e limitada; o multiplicador altera a velocidade dessa trajetoria.
+- A deriva varia de **0,0x** (parado) a **3,0x**. O buraco negro segue uma linha reta a velocidade constante, sem orbitar; o multiplicador altera a velocidade. Como a trajetoria e ilimitada, mova a camera para acompanha-lo se ele sair do enquadramento.
 - **F2**: alternar VSync fora do menu.
 - **7 / 8**: diminuir/aumentar a escala da resolucao interna.
 - **B**: alternar bloom.
