@@ -9,6 +9,7 @@ find_package(OpenGL REQUIRED)
 find_package(glfw3 CONFIG REQUIRED)
 find_package(GLEW REQUIRED)
 find_package(glm CONFIG REQUIRED)
+find_package(imgui CONFIG REQUIRED)
 
 add_executable(Gargantua
     src/main.cpp
@@ -18,7 +19,7 @@ add_executable(Gargantua
     src/ShaderUtil.cpp
 )
 
-target_link_libraries(Gargantua PRIVATE OpenGL::GL glfw GLEW::GLEW glm::glm)
+target_link_libraries(Gargantua PRIVATE OpenGL::GL glfw GLEW::GLEW glm::glm imgui::imgui)
 
 if(MSVC)
     target_compile_options(Gargantua PRIVATE /W4 /permissive- /utf-8)

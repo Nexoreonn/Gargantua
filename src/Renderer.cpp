@@ -158,6 +158,7 @@ void Renderer::render(const Camera& cam, const Settings& s, float diskTime,
     glUniform1f(L("uAspect"), float(iw) / float(ih));
     glUniform1f(L("uPixelAngle"), 2.0f * tanHalf / float(ih));
     glUniform1f(L("uDiskTime"), diskTime);
+    glUniform1f(L("uLensingStrength"), s.lensingStrength);
     glUniform1i(L("uMaxSteps"), qp.maxSteps);
     glUniform1f(L("uStepScale"), qp.stepScale);
     glUniform1i(L("uMaxCrossings"), qp.maxCrossings);

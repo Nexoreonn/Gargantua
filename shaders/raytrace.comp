@@ -17,6 +17,7 @@ uniform float uTanHalfFov;
 uniform float uAspect;
 uniform float uPixelAngle;
 uniform float uDiskTime;
+uniform float uLensingStrength;
 uniform int uMaxSteps;
 uniform float uStepScale;
 uniform int uMaxCrossings;
@@ -75,7 +76,7 @@ float diskFilaments(float radius, float angle) {
 vec3 acceleration(vec3 x, float h2) {
     float r2 = dot(x, x);
     float r = sqrt(r2);
-    return -1.5 * RS * h2 * x / max(r2 * r2 * r, 1e-12);
+    return -1.5 * RS * uLensingStrength * h2 * x / max(r2 * r2 * r, 1e-12);
 }
 
 void rk4(inout vec3 x, inout vec3 v, float h2, float dt) {
@@ -122,6 +123,8 @@ void main() {
         if (r >= uEscapeR && dot(x, v) > 0.0) break;
 
         float dt = uStepScale * clamp(r - RS, 0.02, 40.0);
+        float photonSphereFocus = exp(-pow((r - 3.0) / 0.9, 2.0));
+        dt *= mix(1.0, 0.35, photonSphereFocus);
         rk4(x, v, h2, dt);
 
         if (previousY * x.y <= 0.0 && abs(previousY - x.y) > 1e-6) {
@@ -158,8 +161,6 @@ void main() {
     if (!captured) {
         vec3 escapeDirection = normalize(v);
         radiance += starField(escapeDirection);
-        float lensGlow = exp(-abs(length(cross(x, v)) - 5.196) * 0.28);
-        radiance += vec3(0.035, 0.055, 0.11) * lensGlow;
     }
 
     imageStore(uHDRImage, pixel, vec4(radiance, 1.0));

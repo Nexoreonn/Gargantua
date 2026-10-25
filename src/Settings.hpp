@@ -24,6 +24,7 @@ struct Settings {
     float bloomThreshold  = 1.0f;
     float animSpeed       = 1.0f;
     float blackHoleWanderSpeed = 0.5f;
+    float lensingStrength = 1.0f;
     float renderScale     = 0.75f;
     bool  antiAliasing    = true;
     int   quality         = 1;

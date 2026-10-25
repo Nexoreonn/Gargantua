@@ -6,6 +6,9 @@
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include "imgui_impl_glfw.h"
+#include "imgui_impl_opengl3.h"
+#include "imgui.h"
 #include "Camera.hpp"
 #include "Physics.hpp"
 #include "Renderer.hpp"
@@ -29,7 +32,8 @@ struct App {
     bool reloadRequested = false;
     bool graphicsMenuOpen = false;
     bool mouseCapturedBeforeGraphicsMenu = true;
-    int graphicsMenuSelection = 0;
+    bool cameraOrbitMode = false;
+    glm::vec3 blackHolePosition{0.0f};
 };
 static App* gApp = nullptr;
 
@@ -44,29 +48,138 @@ static void setGraphicsMenuOpen(GLFWwindow* window, App& app, bool open) {
         app.mouseCaptured ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL);
 }
 
-static void adjustGraphicsSetting(App& app, int direction) {
-    switch (app.graphicsMenuSelection) {
-    case 0:
-        app.s.renderScale = std::clamp(
-            std::round((app.s.renderScale + direction * 0.05f) * 100.0f) / 100.0f,
-            0.25f, 1.5f);
-        break;
-    case 1:
-        app.s.antiAliasing = !app.s.antiAliasing;
-        break;
-    case 2:
-        app.s.bloomEnabled = !app.s.bloomEnabled;
-        break;
-    case 3:
-        app.s.vsync = !app.s.vsync;
-        glfwSwapInterval(app.s.vsync ? 1 : 0);
-        break;
-    case 4:
-        app.s.blackHoleWanderSpeed = std::clamp(
-            std::round((app.s.blackHoleWanderSpeed + direction * 0.1f) * 10.0f) / 10.0f,
-            0.0f, 3.0f);
-        break;
+static void setupGraphicsMenuStyle() {
+    ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowPadding = ImVec2(20.0f, 18.0f);
+    style.FramePadding = ImVec2(12.0f, 9.0f);
+    style.ItemSpacing = ImVec2(10.0f, 9.0f);
+    style.WindowRounding = 0.0f;
+    style.ChildRounding = 0.0f;
+    style.FrameRounding = 0.0f;
+    style.WindowBorderSize = 1.0f;
+    style.FrameBorderSize = 1.0f;
+    style.ScrollbarRounding = 0.0f;
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.025f, 0.035f, 0.030f, 0.96f);
+    style.Colors[ImGuiCol_Border] = ImVec4(0.34f, 0.39f, 0.24f, 0.85f);
+    style.Colors[ImGuiCol_Text] = ImVec4(0.88f, 0.89f, 0.81f, 1.00f);
+    style.Colors[ImGuiCol_TextDisabled] = ImVec4(0.57f, 0.59f, 0.51f, 1.00f);
+    style.Colors[ImGuiCol_FrameBg] = ImVec4(0.095f, 0.105f, 0.090f, 1.00f);
+    style.Colors[ImGuiCol_FrameBgHovered] = ImVec4(0.17f, 0.19f, 0.13f, 1.00f);
+    style.Colors[ImGuiCol_FrameBgActive] = ImVec4(0.20f, 0.23f, 0.15f, 1.00f);
+    style.Colors[ImGuiCol_SliderGrab] = ImVec4(0.67f, 0.72f, 0.40f, 1.00f);
+    style.Colors[ImGuiCol_SliderGrabActive] = ImVec4(0.82f, 0.86f, 0.52f, 1.00f);
+    style.Colors[ImGuiCol_CheckMark] = ImVec4(0.79f, 0.84f, 0.48f, 1.00f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.15f, 0.18f, 0.12f, 1.00f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.25f, 0.29f, 0.17f, 1.00f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.33f, 0.38f, 0.21f, 1.00f);
+    style.Colors[ImGuiCol_Header] = ImVec4(0.20f, 0.24f, 0.14f, 0.75f);
+    style.Colors[ImGuiCol_HeaderHovered] = ImVec4(0.28f, 0.33f, 0.18f, 0.85f);
+    style.Colors[ImGuiCol_HeaderActive] = ImVec4(0.34f, 0.40f, 0.22f, 1.00f);
+    style.Colors[ImGuiCol_Separator] = ImVec4(0.35f, 0.39f, 0.25f, 0.75f);
+}
+
+static void drawSettingsSection(const char* title) {
+    ImGui::Spacing();
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.70f, 0.75f, 0.47f, 1.0f));
+    ImGui::Text("%s", title);
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    const float remaining = ImGui::GetContentRegionAvail().x;
+    if (remaining > 8.0f) {
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + ImGui::GetTextLineHeight() * 0.55f);
+        ImGui::SetNextItemWidth(remaining);
+        ImGui::Separator();
     }
+}
+
+static void drawSettingLabel(const char* label) {
+    ImGui::TableNextRow(ImGuiTableRowFlags_None, 42.0f);
+    ImGui::TableSetColumnIndex(0);
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextDisabled("%s", label);
+    ImGui::TableSetColumnIndex(1);
+}
+
+static void drawGraphicsMenu(App& app, int fps) {
+    if (!app.graphicsMenuOpen) return;
+
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float width = std::clamp(viewport->WorkSize.x * 0.58f, 480.0f, 720.0f);
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + 28.0f, viewport->WorkPos.y + 28.0f),
+                            ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(std::min(width, viewport->WorkSize.x - 40.0f), 0.0f),
+                             ImGuiCond_Always);
+    ImGui::Begin("##GargantuaGraphicsPanel", nullptr,
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_AlwaysAutoResize);
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.84f, 0.88f, 0.61f, 1.0f));
+    ImGui::TextUnformatted("GARGANTUA");
+    ImGui::PopStyleColor();
+    ImGui::SameLine();
+    ImGui::TextDisabled("// VIDEO SETTINGS");
+    ImGui::SameLine(ImGui::GetWindowWidth() - 100.0f);
+    ImGui::Text("%d FPS", fps);
+    ImGui::Separator();
+    ImGui::TextDisabled("CONFIGURACAO DE IMAGEM E SIMULACAO");
+
+    drawSettingsSection("DISPLAY");
+    if (ImGui::BeginTable("DisplaySettings", 2, ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("Setting", ImGuiTableColumnFlags_WidthStretch, 0.58f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.42f);
+        drawSettingLabel("Escala da resolucao");
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::SliderFloat("##RenderScale", &app.s.renderScale, 0.25f, 1.5f, "%.2fx");
+        drawSettingLabel("Anti-aliasing (FXAA)");
+        ImGui::Checkbox("Ativo##FXAA", &app.s.antiAliasing);
+        drawSettingLabel("Sincronizacao vertical");
+        if (ImGui::Checkbox("Ativo##VSync", &app.s.vsync))
+            glfwSwapInterval(app.s.vsync ? 1 : 0);
+        ImGui::EndTable();
+    }
+
+    drawSettingsSection("LIGHT & LENSING");
+    if (ImGui::BeginTable("LightingSettings", 2, ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("Setting", ImGuiTableColumnFlags_WidthStretch, 0.58f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.42f);
+        drawSettingLabel("Bloom");
+        ImGui::Checkbox("Ativo##Bloom", &app.s.bloomEnabled);
+        drawSettingLabel("Intensidade do bloom");
+        ImGui::BeginDisabled(!app.s.bloomEnabled);
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::SliderFloat("##BloomIntensity", &app.s.bloomIntensity, 0.0f, 2.0f, "%.2f");
+        ImGui::EndDisabled();
+        drawSettingLabel("Lente gravitacional");
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::SliderFloat("##LensingStrength", &app.s.lensingStrength, 0.0f, 1.5f, "%.2fx");
+        ImGui::EndTable();
+    }
+
+    drawSettingsSection("SIMULATION");
+    if (ImGui::BeginTable("SimulationSettings", 2, ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableSetupColumn("Setting", ImGuiTableColumnFlags_WidthStretch, 0.58f);
+        ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.42f);
+        drawSettingLabel("Qualidade do tracado");
+        const char* qualityNames[] = { "Rapido", "Equilibrado", "Alto", "Referencia" };
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::Combo("##RayQuality", &app.s.quality, qualityNames, kNumQualityPresets);
+        drawSettingLabel("Velocidade do disco");
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::SliderFloat("##DiskSpeed", &app.s.animSpeed, 0.0f, 10.0f, "%.2fx");
+        drawSettingLabel("Deriva do buraco negro");
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::SliderFloat("##WanderSpeed", &app.s.blackHoleWanderSpeed, 0.0f, 3.0f, "%.1fx");
+        drawSettingLabel("Camera em orbita");
+        if (ImGui::Checkbox("Ativa##OrbitCamera", &app.cameraOrbitMode))
+            app.cam.setOrbitMode(app.cameraOrbitMode, app.blackHolePosition);
+        ImGui::EndTable();
+    }
+
+    ImGui::Separator();
+    ImGui::TextDisabled("F3 fechar  |  Mouse ou setas para ajustar  |  P pausar simulacao");
+    ImGui::End();
 }
 
 static void keyCallback(GLFWwindow* w, int key, int, int action, int) {
@@ -77,17 +190,12 @@ static void keyCallback(GLFWwindow* w, int key, int, int action, int) {
         setGraphicsMenuOpen(w, app, !app.graphicsMenuOpen);
         return;
     }
-    if (app.graphicsMenuOpen) {
-        if (key == GLFW_KEY_UP) {
-            app.graphicsMenuSelection = (app.graphicsMenuSelection + 4) % 5;
-        } else if (key == GLFW_KEY_DOWN) {
-            app.graphicsMenuSelection = (app.graphicsMenuSelection + 1) % 5;
-        } else if (key == GLFW_KEY_LEFT || key == GLFW_KEY_RIGHT) {
-            if (action == GLFW_REPEAT && app.graphicsMenuSelection != 0) return;
-            adjustGraphicsSetting(app, key == GLFW_KEY_RIGHT ? 1 : -1);
-        }
+    if (key == GLFW_KEY_F1 && action == GLFW_PRESS && !app.graphicsMenuOpen) {
+        app.cameraOrbitMode = !app.cameraOrbitMode;
+        app.cam.setOrbitMode(app.cameraOrbitMode, app.blackHolePosition);
         return;
     }
+    if (app.graphicsMenuOpen) return;
     switch (key) {
     case GLFW_KEY_ESCAPE: glfwSetWindowShouldClose(w, GLFW_TRUE); break;
     case GLFW_KEY_TAB:
@@ -136,34 +244,16 @@ static void cursorPositionCallback(GLFWwindow* w, double x, double y) {
 
 static void scrollCallback(GLFWwindow* w, double, double yoffset) {
     App* app = static_cast<App*>(glfwGetWindowUserPointer(w));
-    if (app) app->cam.onScroll(float(yoffset));
+    if (app && !app->graphicsMenuOpen) app->cam.onScroll(float(yoffset));
 }
 
 static void glfwErrorCallback(int, const char* description) {
     std::fprintf(stderr, "[glfw] %s\n", description);
 }
 
-static void updateWindowTitle(GLFWwindow* window, const App& app, int fps) {
-    char title[384];
-    if (app.graphicsMenuOpen) {
-        const char* selected = "";
-        char scaleValue[16];
-        std::snprintf(scaleValue, sizeof(scaleValue), "%.2fx", app.s.renderScale);
-        switch (app.graphicsMenuSelection) {
-        case 0: selected = "Escala"; break;
-        case 1: selected = "Anti-aliasing"; break;
-        case 2: selected = "Bloom"; break;
-        case 3: selected = "VSync"; break;
-        case 4: selected = "Deriva do buraco negro"; break;
-        }
-        std::snprintf(title, sizeof(title),
-            "Gargantua | %d FPS | GRAFICOS: %s | Escala %s | AA %s | Bloom %s | VSync %s | Deriva %.1fx | Setas: navegar/alterar | F3: fechar",
-            fps, selected, scaleValue, app.s.antiAliasing ? "ON" : "OFF",
-            app.s.bloomEnabled ? "ON" : "OFF", app.s.vsync ? "ON" : "OFF",
-            app.s.blackHoleWanderSpeed);
-    } else {
-        std::snprintf(title, sizeof(title), "Gargantua | %d FPS | F3: graficos", fps);
-    }
+static void updateWindowTitle(GLFWwindow* window, int fps) {
+    char title[128];
+    std::snprintf(title, sizeof(title), "Gargantua | %d FPS | F3: graficos", fps);
     glfwSetWindowTitle(window, title);
 }
 
@@ -205,11 +295,37 @@ int main(int, char* argv[]) {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSwapInterval(app.s.vsync ? 1 : 0);
 
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& imguiIo = ImGui::GetIO();
+    imguiIo.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    setupGraphicsMenuStyle();
+    if (!ImGui_ImplGlfw_InitForOpenGL(window, true)) {
+        std::fprintf(stderr, "[imgui] falha ao inicializar backend GLFW\n");
+        ImGui::DestroyContext();
+        gApp = nullptr;
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return 1;
+    }
+    if (!ImGui_ImplOpenGL3_Init("#version 430")) {
+        std::fprintf(stderr, "[imgui] falha ao inicializar backend OpenGL\n");
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
+        gApp = nullptr;
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        return 1;
+    }
+
     const std::filesystem::path executablePath = std::filesystem::absolute(argv[0]);
     const std::filesystem::path shaderDir = executablePath.parent_path() / "shaders";
     if (!app.renderer.init(shaderDir.string())) {
         std::fprintf(stderr, "[renderer] nao foi possivel inicializar; verifique os shaders em %s\n",
                      shaderDir.string().c_str());
+        ImGui_ImplOpenGL3_Shutdown();
+        ImGui_ImplGlfw_Shutdown();
+        ImGui::DestroyContext();
         gApp = nullptr;
         glfwDestroyWindow(window);
         glfwTerminate();
@@ -235,9 +351,10 @@ int main(int, char* argv[]) {
             diskTime += dt * app.s.animSpeed;
             wanderTime += dt;
         }
-        const glm::vec3 blackHolePosition =
+        app.blackHolePosition =
             driftDirection * (wanderTime * 0.35f * app.s.blackHoleWanderSpeed);
-        app.cam.update(window, dt, blackHolePosition);
+        if (!app.graphicsMenuOpen)
+            app.cam.update(window, dt, app.blackHolePosition, app.cameraOrbitMode);
         if (app.reloadRequested) {
             app.renderer.reloadShaders();
             app.reloadRequested = false;
@@ -245,7 +362,15 @@ int main(int, char* argv[]) {
 
         int width = 0, height = 0;
         glfwGetFramebufferSize(window, &width, &height);
-        app.renderer.render(app.cam, app.s, diskTime, blackHolePosition, width, height);
+        app.renderer.render(app.cam, app.s, diskTime, app.blackHolePosition, width, height);
+
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        drawGraphicsMenu(app, displayedFps);
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
         glfwSwapBuffers(window);
 
         framesInWindow++;
@@ -255,12 +380,15 @@ int main(int, char* argv[]) {
             fpsWindowStart = currentTime;
         }
         if (currentTime - titleUpdateTime >= 0.25) {
-            updateWindowTitle(window, app, displayedFps);
+            updateWindowTitle(window, displayedFps);
             titleUpdateTime = currentTime;
         }
     }
 
     app.renderer.shutdown();
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
     gApp = nullptr;
     glfwDestroyWindow(window);
     glfwTerminate();

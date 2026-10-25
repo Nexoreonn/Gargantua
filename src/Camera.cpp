@@ -31,7 +31,30 @@ void Camera::onScroll(float yoffset) {
     fovDeg = std::clamp(fovDeg - yoffset * 2.5f, 10.0f, 120.0f);
 }
 
-void Camera::update(GLFWwindow* w, float dt, const glm::vec3& blackHolePosition) {
+void Camera::setOrbitMode(bool enabled, const glm::vec3& blackHolePosition) {
+    if (!enabled) return;
+
+    const glm::vec3 offset = position - blackHolePosition;
+    orbitDistance = std::max(glm::length(offset), physics::kMinCameraRadius);
+    const glm::vec3 lookDirection = glm::normalize(-offset);
+    yaw = std::atan2(lookDirection.x, -lookDirection.z);
+    pitch = std::asin(std::clamp(lookDirection.y, -1.0f, 1.0f));
+}
+
+void Camera::update(GLFWwindow* w, float dt, const glm::vec3& blackHolePosition, bool orbitMode) {
+    if (orbitMode) {
+        if (glfwGetKey(w, GLFW_KEY_A) == GLFW_PRESS) yaw -= baseSpeed * 0.15f * dt;
+        if (glfwGetKey(w, GLFW_KEY_D) == GLFW_PRESS) yaw += baseSpeed * 0.15f * dt;
+        if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) orbitDistance -= baseSpeed * dt;
+        if (glfwGetKey(w, GLFW_KEY_S) == GLFW_PRESS) orbitDistance += baseSpeed * dt;
+        if (glfwGetKey(w, GLFW_KEY_SPACE) == GLFW_PRESS) orbitDistance -= baseSpeed * dt;
+        if (glfwGetKey(w, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) orbitDistance += baseSpeed * dt;
+
+        orbitDistance = std::max(physics::kMinCameraRadius, orbitDistance);
+        position = blackHolePosition - forward() * orbitDistance;
+        return;
+    }
+
     glm::vec3 move(0.0f);
     const glm::vec3 f = forward(), r = right(), u(0, 1, 0);
     if (glfwGetKey(w, GLFW_KEY_W) == GLFW_PRESS) move += f;

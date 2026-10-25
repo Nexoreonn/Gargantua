@@ -6,6 +6,10 @@
     "glew",
     "glm",
     {
+      "name": "imgui",
+      "features": [ "glfw-binding", "opengl3-binding" ]
+    },
+    {
       "name": "glslang",
       "features": [ "tools" ]
     }

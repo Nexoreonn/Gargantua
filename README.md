@@ -9,7 +9,7 @@ Aplicação C++17 de visualização de um buraco negro com OpenGL 4.3, GLFW, GLE
 - CMake 3.21 ou superior
 - vcpkg
 
-O manifesto `vcpkg.json` instala GLFW, GLEW, GLM e `glslangValidator` (ferramenta de validação dos shaders).
+O manifesto `vcpkg.json` instala GLFW, GLEW, GLM, Dear ImGui (interface do menu gráfico) e `glslangValidator` (ferramenta de validação dos shaders).
 
 Se ainda não tiver o vcpkg, instale-o uma vez:
 
@@ -72,14 +72,16 @@ Inicie o executável na pasta da configuração desejada:
 - **Roda do mouse:** ajustar o campo de visão.
 - **Esc:** sair.
 - **P:** pausar ou retomar a animação do disco e a deriva do buraco negro.
+- **F1:** alternar entre câmera livre e câmera em órbita. No modo orbital, a câmera acompanha e aponta para o buraco negro; **W/S** ajustam a distância, **A/D** giram ao redor dele e o mouse controla a orientação.
 - **5 / 6:** diminuir ou aumentar a velocidade de rotação do disco. O valor zero interrompe a animação do disco.
 - **F5:** recarregar os shaders.
 
 ### Opções e ajustes
 
-- **F3:** abrir ou fechar o menu gráfico exibido no título da janela.
-- No menu F3, as **setas para cima/baixo** selecionam uma opção, enquanto as **setas para a esquerda/direita** alteram o valor.
-- Opções do menu: escala da resolução interna, antialiasing FXAA, bloom, VSync e velocidade da deriva do buraco negro.
+- **F3:** abrir ou fechar o painel gráfico dentro da janela.
+- O painel também permite ativar ou desativar o modo de câmera em órbita.
+- O painel inspirado em menus de jogos permite ajustar com o mouse ou teclado a escala da resolução interna, FXAA, bloom, VSync, intensidade da lente gravitacional, qualidade do traçado e velocidades de animação.
+- A lente gravitacional usa passos de integração menores perto da esfera de fótons e destaca o anel de fótons; o controle de intensidade permite ajustar a deflexão visual.
 - A deriva varia de **0,0x** (parado) a **3,0x**. O buraco negro segue uma linha reta a velocidade constante, sem orbitar; o multiplicador altera sua velocidade. Como a trajetória é ilimitada, mova a câmera para acompanhá-lo caso ele saia do enquadramento.
 - **F2:** alternar o VSync fora do menu.
 - **7 / 8:** diminuir ou aumentar a escala da resolução interna.
