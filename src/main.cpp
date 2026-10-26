@@ -119,28 +119,34 @@ static void drawGraphicsMenu(App& app, int fps) {
     ImGui::TextUnformatted("GARGANTUA");
     ImGui::PopStyleColor();
     ImGui::SameLine();
-    ImGui::TextDisabled("// VIDEO SETTINGS");
+    ImGui::TextDisabled("// CONFIGURAÇÕES GRÁFICAS");
     ImGui::SameLine(ImGui::GetWindowWidth() - 100.0f);
     ImGui::Text("%d FPS", fps);
     ImGui::Separator();
-    ImGui::TextDisabled("CONFIGURACAO DE IMAGEM E SIMULACAO");
+    ImGui::TextDisabled("CONFIGURAÇÃO DE IMAGEM E SIMULAÇÃO");
 
-    drawSettingsSection("DISPLAY");
+    drawSettingsSection("VÍDEO");
     if (ImGui::BeginTable("DisplaySettings", 2, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("Setting", ImGuiTableColumnFlags_WidthStretch, 0.58f);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.42f);
-        drawSettingLabel("Escala da resolucao");
+        drawSettingLabel("Escala de renderização");
         ImGui::SetNextItemWidth(-1.0f);
-        ImGui::SliderFloat("##RenderScale", &app.s.renderScale, 0.25f, 1.5f, "%.2fx");
-        drawSettingLabel("Anti-aliasing (FXAA)");
-        ImGui::Checkbox("Ativo##FXAA", &app.s.antiAliasing);
-        drawSettingLabel("Sincronizacao vertical");
+        ImGui::SliderFloat("##RenderScale", &app.s.renderScale, 0.25f, 1.5f, "%.1fx");
+        drawSettingLabel("Anti-aliasing");
+        const char* aaOptions[] = {
+            "Nenhum", "FXAA", "SMAA (aproximação)", "MSAA 2x", "MSAA 4x", "MSAA 8x", "TAA"
+        };
+        int selectedAA = static_cast<int>(app.s.antiAliasing);
+        ImGui::SetNextItemWidth(-1.0f);
+        if (ImGui::Combo("##AntiAliasing", &selectedAA, aaOptions, IM_ARRAYSIZE(aaOptions)))
+            app.s.antiAliasing = static_cast<AntiAliasingMode>(selectedAA);
+        drawSettingLabel("Sincronização vertical");
         if (ImGui::Checkbox("Ativo##VSync", &app.s.vsync))
             glfwSwapInterval(app.s.vsync ? 1 : 0);
         ImGui::EndTable();
     }
 
-    drawSettingsSection("LIGHT & LENSING");
+    drawSettingsSection("ILUMINAÇÃO E LENTE");
     if (ImGui::BeginTable("LightingSettings", 2, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("Setting", ImGuiTableColumnFlags_WidthStretch, 0.58f);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.42f);
@@ -157,12 +163,12 @@ static void drawGraphicsMenu(App& app, int fps) {
         ImGui::EndTable();
     }
 
-    drawSettingsSection("SIMULATION");
+    drawSettingsSection("SIMULAÇÃO");
     if (ImGui::BeginTable("SimulationSettings", 2, ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("Setting", ImGuiTableColumnFlags_WidthStretch, 0.58f);
         ImGui::TableSetupColumn("Value", ImGuiTableColumnFlags_WidthStretch, 0.42f);
-        drawSettingLabel("Qualidade do tracado");
-        const char* qualityNames[] = { "Rapido", "Equilibrado", "Alto", "Referencia" };
+        drawSettingLabel("Qualidade do traçado");
+        const char* qualityNames[] = { "Rápido", "Equilibrado", "Alto", "Referência" };
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::Combo("##RayQuality", &app.s.quality, qualityNames, kNumQualityPresets);
         drawSettingLabel("Velocidade do disco");
@@ -171,14 +177,14 @@ static void drawGraphicsMenu(App& app, int fps) {
         drawSettingLabel("Deriva do buraco negro");
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::SliderFloat("##WanderSpeed", &app.s.blackHoleWanderSpeed, 0.0f, 3.0f, "%.1fx");
-        drawSettingLabel("Camera em orbita");
+        drawSettingLabel("Câmera em órbita");
         if (ImGui::Checkbox("Ativa##OrbitCamera", &app.cameraOrbitMode))
             app.cam.setOrbitMode(app.cameraOrbitMode, app.blackHolePosition);
         ImGui::EndTable();
     }
 
     ImGui::Separator();
-    ImGui::TextDisabled("F3 fechar  |  Mouse ou setas para ajustar  |  P pausar simulacao");
+    ImGui::TextDisabled("F3 fechar  |  Mouse ou setas para ajustar  |  P pausar simulação");
     ImGui::End();
 }
 

@@ -1,0 +1,34 @@
+#version 430 core
+
+layout(local_size_x = 16, local_size_y = 16) in;
+layout(binding = 0) uniform sampler2D uCurrent;
+layout(binding = 1) uniform sampler2D uHistory;
+layout(rgba16f, binding = 0) uniform writeonly image2D uResolved;
+uniform int uHistoryValid;
+
+void main() {
+    ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    ivec2 size = imageSize(uResolved);
+    if (pixel.x >= size.x || pixel.y >= size.y) return;
+
+    vec4 current = texelFetch(uCurrent, pixel, 0);
+    if (uHistoryValid == 0) {
+        imageStore(uResolved, pixel, current);
+        return;
+    }
+
+    vec3 neighborhoodMin = current.rgb;
+    vec3 neighborhoodMax = current.rgb;
+    for (int y = -1; y <= 1; ++y) {
+        for (int x = -1; x <= 1; ++x) {
+            ivec2 samplePosition = clamp(pixel + ivec2(x, y), ivec2(0), size - 1);
+            vec3 sampleColor = texelFetch(uCurrent, samplePosition, 0).rgb;
+            neighborhoodMin = min(neighborhoodMin, sampleColor);
+            neighborhoodMax = max(neighborhoodMax, sampleColor);
+        }
+    }
+
+    vec3 history = texelFetch(uHistory, pixel, 0).rgb;
+    history = clamp(history, neighborhoodMin, neighborhoodMax);
+    imageStore(uResolved, pixel, vec4(mix(current.rgb, history, 0.82), current.a));
+}

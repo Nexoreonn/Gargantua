@@ -44,6 +44,7 @@ find_program(GLSLANG_VALIDATOR
 if(GLSLANG_VALIDATOR AND EXISTS "${CMAKE_SOURCE_DIR}/shaders")
     add_custom_target(validate_shaders
         COMMAND "${GLSLANG_VALIDATOR}" "${CMAKE_SOURCE_DIR}/shaders/raytrace.comp"
+        COMMAND "${GLSLANG_VALIDATOR}" "${CMAKE_SOURCE_DIR}/shaders/taa.comp"
         COMMAND "${GLSLANG_VALIDATOR}" "${CMAKE_SOURCE_DIR}/shaders/bloom_down.comp"
         COMMAND "${GLSLANG_VALIDATOR}" "${CMAKE_SOURCE_DIR}/shaders/bloom_blur.comp"
         COMMAND "${GLSLANG_VALIDATOR}" "${CMAKE_SOURCE_DIR}/shaders/fullscreen.vert"

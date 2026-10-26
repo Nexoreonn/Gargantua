@@ -80,7 +80,10 @@ Inicie o executável na pasta da configuração desejada:
 
 - **F3:** abrir ou fechar o painel gráfico dentro da janela.
 - O painel também permite ativar ou desativar o modo de câmera em órbita.
-- O painel inspirado em menus de jogos permite ajustar com o mouse ou teclado a escala da resolução interna, FXAA, bloom, VSync, intensidade da lente gravitacional, qualidade do traçado e velocidades de animação.
+- O painel permite ajustar com o mouse ou teclado a escala da resolução, anti-aliasing (Nenhum, FXAA, SMAA, MSAA 2x/4x/8x ou TAA), bloom, VSync, intensidade da lente gravitacional, qualidade do traçado e velocidades de animação.
+- MSAA é implementado como supersampling de raios, pois a cena é produzida por um shader compute e não por geometria rasterizada. As opções 4x e 8x podem reduzir bastante o FPS.
+- SMAA usa uma aproximação morfológica espacial, não a implementação de referência completa. TAA acumula amostras temporais com limitação de vizinhança; o histórico é reiniciado quando a câmera se move. Objetos animados ainda podem apresentar rastros leves.
+- Os valores iniciais são escala de renderização **1,0x** e intensidade de bloom **0,50**.
 - A lente gravitacional usa passos de integração menores perto da esfera de fótons e destaca o anel de fótons; o controle de intensidade permite ajustar a deflexão visual.
 - A deriva varia de **0,0x** (parado) a **3,0x**. O buraco negro segue uma linha reta a velocidade constante, sem orbitar; o multiplicador altera sua velocidade. Como a trajetória é ilimitada, mova a câmera para acompanhá-lo caso ele saia do enquadramento.
 - **F2:** alternar o VSync fora do menu.

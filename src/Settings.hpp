@@ -10,23 +10,33 @@ struct QualityPreset {
 };
 
 inline const QualityPreset kQualityPresets[] = {
-    { "Rapido",      300, 0.100f, 2 },
+    { "Rápido",      300, 0.100f, 2 },
     { "Equilibrado", 600, 0.060f, 3 },
     { "Alto",       1200, 0.035f, 4 },
-    { "Referencia", 2500, 0.018f, 5 },
+    { "Referência", 2500, 0.018f, 5 },
 };
 inline constexpr int kNumQualityPresets = 4;
+
+enum class AntiAliasingMode {
+    None,
+    FXAA,
+    SMAA,
+    MSAA2x,
+    MSAA4x,
+    MSAA8x,
+    TAA,
+};
 
 struct Settings {
     float exposure        = 1.0f;
     bool  bloomEnabled    = true;
-    float bloomIntensity  = 0.30f;
+    float bloomIntensity  = 0.50f;
     float bloomThreshold  = 1.0f;
     float animSpeed       = 1.0f;
     float blackHoleWanderSpeed = 0.5f;
     float lensingStrength = 1.0f;
-    float renderScale     = 0.75f;
-    bool  antiAliasing    = true;
+    float renderScale     = 1.0f;
+    AntiAliasingMode antiAliasing = AntiAliasingMode::FXAA;
     int   quality         = 1;
     float diskIntensity   = 1.0f;
     float dopplerStrength = 1.0f;  // 1 = físico; 0 = desligado (comparação)

@@ -27,14 +27,24 @@ public:
     double gpuTotalMs = 0.0; // tempo total de GPU do quadro
 
 private:
-    bool buildPrograms(GLuint& ray, GLuint& down, GLuint& blur, GLuint& tone);
+    bool buildPrograms(GLuint& ray, GLuint& down, GLuint& blur, GLuint& tone, GLuint& taa);
     void createTargets(int w, int h);
     void destroyTargets();
     void pollAsyncResults();
+    void resetTemporalHistory();
 
     std::string shaderDir_;
     GLuint progRay_ = 0, progDown_ = 0, progBlur_ = 0, progTone_ = 0;
     GLuint texHDR_ = 0, texBloomA_ = 0, texBloomB_ = 0;
+    GLuint texTaa_[2] = {};
+    GLuint progTaa_ = 0;
+    int taaReadIndex_ = 0;
+    bool taaHistoryValid_ = false;
+    bool previousCameraValid_ = false;
+    glm::vec3 previousCameraPosition_{0.0f};
+    glm::vec3 previousCameraForward_{0.0f};
+    float previousLensingStrength_ = 1.0f;
+    AntiAliasingMode previousAAMode_ = AntiAliasingMode::None;
     int bloomW_ = 0, bloomH_ = 0;
     GLuint vao_ = 0;
     GLuint ssboStats_ = 0;
